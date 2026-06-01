@@ -15,7 +15,21 @@ class WakeWordConfig:
 
 def contains_wake_word(text: str, config: WakeWordConfig | None = None) -> bool:
     """Evalua texto ya transcrito para saber si contiene la palabra de activacion."""
+    return extract_command(text, config=config) is not None
+
+
+def extract_command(text: str, config: WakeWordConfig | None = None) -> str | None:
+    """Devuelve el texto posterior a la palabra de activacion, si aparece."""
     wake_config = config or WakeWordConfig()
     normalized_text = text.casefold().strip()
     normalized_phrase = wake_config.phrase.casefold().strip()
-    return bool(normalized_phrase and normalized_phrase in normalized_text)
+
+    if not normalized_phrase:
+        return None
+
+    wake_index = normalized_text.find(normalized_phrase)
+    if wake_index == -1:
+        return None
+
+    command_start = wake_index + len(normalized_phrase)
+    return text[command_start:].strip(" ,.:;")

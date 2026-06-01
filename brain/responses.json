@@ -1,0 +1,27 @@
+[
+  {
+    "id": "saludo",
+    "patterns": ["hola", "buenos dias", "buenas tardes", "buenas noches"],
+    "response": "Hola. Estoy lista para ayudarte."
+  },
+  {
+    "id": "identidad",
+    "patterns": ["quien eres", "como te llamas", "que eres"],
+    "response": "Soy NARA, un asistente de voz local y modular."
+  },
+  {
+    "id": "capacidades",
+    "patterns": ["que puedes hacer", "ayuda", "opciones"],
+    "response": "Por ahora puedo escucharte, transcribir tu voz, detectar mi nombre y responder comandos basicos."
+  },
+  {
+    "id": "estado",
+    "patterns": ["como estas", "estas lista", "estado del sistema"],
+    "response": "Estoy funcionando correctamente."
+  },
+  {
+    "id": "agradecimiento",
+    "patterns": ["gracias", "muchas gracias"],
+    "response": "De nada."
+  }
+]

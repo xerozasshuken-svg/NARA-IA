@@ -49,9 +49,15 @@ def _resolve_piper_command() -> str:
     if path_command:
         return path_command
 
-    local_command = PROJECT_ROOT / "venv" / "Scripts" / "piper.exe"
-    if local_command.exists():
-        return str(local_command)
+    local_commands = (
+        PROJECT_ROOT / "venv" / "Scripts" / "piper.exe",
+        PROJECT_ROOT / "venv" / "bin" / "piper",
+        PROJECT_ROOT / ".venv" / "Scripts" / "piper.exe",
+        PROJECT_ROOT / ".venv" / "bin" / "piper",
+    )
+    for local_command in local_commands:
+        if local_command.exists():
+            return str(local_command)
 
     raise FileNotFoundError(
         "No se encontro Piper. Instala piper-tts o define NARA_PIPER_COMMAND."

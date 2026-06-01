@@ -15,7 +15,7 @@
 
 ## Fase 3: Capa de voz
 
-- Añadir soporte de voz a texto sin conexión.
+- Añadir soporte de voz a texto sin conexión con Vosk.
 - Añadir soporte de texto a voz sin conexión.
 - Evaluar opciones de detección de palabra de activación.
 
@@ -30,3 +30,4 @@
 - Documentar los pasos de instalación.
 - Añadir soporte para iniciar el asistente como servicio.
 - Optimizar latencia, uso de memoria y fiabilidad.
+- Reutilizar modelos cargados, medir tiempos por turno y limpiar grabaciones antiguas.
