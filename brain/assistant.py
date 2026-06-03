@@ -6,6 +6,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from time import perf_counter
 
+from audio import SilenceConfig
 from speech import WakeWordConfig, extract_command, record_and_transcribe, speak
 from .intents import generate_response
 
@@ -40,13 +41,23 @@ def run_voice_turn(
     wake_config: WakeWordConfig | None = None,
     listen_prompt: str = "Te escucho.",
     idle_response: str = "No escuche mi palabra de activacion.",
+    processing_prompt: str | None = None,
+    use_silence_detection: bool = True,
+    silence_config: SilenceConfig | None = None,
 ) -> VoiceTurnResult:
     """Ejecuta un turno de voz y responde si detecta la palabra de activacion."""
-    speak(listen_prompt)
+    if listen_prompt:
+        speak(listen_prompt)
 
     listen_start = perf_counter()
-    audio_path, transcript = record_and_transcribe(duration_seconds)
+    audio_path, transcript = record_and_transcribe(
+        duration_seconds,
+        use_silence_detection=use_silence_detection,
+        silence_config=silence_config,
+    )
     listen_seconds = perf_counter() - listen_start
+    if processing_prompt:
+        speak(processing_prompt)
 
     think_start = perf_counter()
     command = extract_command(transcript, config=wake_config)

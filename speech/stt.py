@@ -10,7 +10,7 @@ from dataclasses import dataclass
 from functools import lru_cache
 from pathlib import Path
 
-from audio import record_to_wav
+from audio import SilenceConfig, record_to_wav, record_to_wav_until_silence
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
@@ -65,19 +65,35 @@ def transcribe_wav(
 @lru_cache(maxsize=2)
 def _load_model(model_path: str):
     """Carga y reutiliza modelos Vosk para evitar recargas en cada turno."""
-    from vosk import Model
+    from vosk import Model, SetLogLevel
 
+    SetLogLevel(-1)
     return Model(model_path)
 
 
 def record_and_transcribe(
     duration_seconds: float = 3.0,
     config: VoskConfig | None = None,
+    use_silence_detection: bool = False,
+    silence_config: SilenceConfig | None = None,
 ) -> tuple[Path, str]:
     """Graba audio del microfono y devuelve la ruta junto a la transcripcion."""
-    audio_path = record_to_wav(duration_seconds)
+    if use_silence_detection:
+        audio_path = record_to_wav_until_silence(
+            silence_config=silence_config
+            or SilenceConfig(max_duration_seconds=duration_seconds)
+        )
+    else:
+        audio_path = record_to_wav(duration_seconds)
     transcript = transcribe_wav(audio_path, config=config)
     return audio_path, transcript
+
+
+def warm_up_stt(config: VoskConfig | None = None) -> Path:
+    """Carga el modelo Vosk antes de escuchar para evitar demora en el primer turno."""
+    model_path = _resolve_model_path(config)
+    _load_model(str(model_path))
+    return model_path
 
 
 def _resolve_model_path(config: VoskConfig | None = None) -> Path:
@@ -133,6 +149,11 @@ def _build_parser() -> argparse.ArgumentParser:
         default=None,
         help="Ruta a la carpeta del modelo Vosk.",
     )
+    parser.add_argument(
+        "--silence",
+        action="store_true",
+        help="Graba hasta detectar silencio en lugar de usar duracion fija.",
+    )
     return parser
 
 
@@ -148,6 +169,7 @@ def main() -> None:
         audio_path, transcript = record_and_transcribe(
             duration_seconds=args.duration,
             config=config,
+            use_silence_detection=args.silence,
         )
 
     print(f"Audio: {audio_path}")

@@ -4,8 +4,8 @@ from __future__ import annotations
 
 import argparse
 import wave
-from datetime import datetime
 from dataclasses import dataclass
+from datetime import datetime
 from pathlib import Path
 
 import numpy as np
@@ -21,6 +21,17 @@ class AudioConfig:
     sample_rate: int = 16_000
     channels: int = 1
     dtype: str = "float32"
+
+
+@dataclass(frozen=True)
+class SilenceConfig:
+    """Configuracion para cortar la grabacion cuando el usuario deja de hablar."""
+
+    threshold: float = 0.015
+    silence_seconds: float = 1.0
+    max_duration_seconds: float = 8.0
+    min_recording_seconds: float = 0.5
+    block_duration_seconds: float = 0.1
 
 
 def record_audio(
@@ -46,6 +57,52 @@ def record_audio(
     sd.wait()
 
     return recording
+
+
+def record_audio_until_silence(
+    config: AudioConfig | None = None,
+    silence_config: SilenceConfig | None = None,
+    device: int | str | None = None,
+) -> np.ndarray:
+    """Graba hasta detectar silencio o alcanzar una duracion maxima."""
+    audio_config = config or AudioConfig()
+    silence = silence_config or SilenceConfig()
+    block_size = int(audio_config.sample_rate * silence.block_duration_seconds)
+    max_blocks = int(silence.max_duration_seconds / silence.block_duration_seconds)
+    silence_blocks_needed = int(silence.silence_seconds / silence.block_duration_seconds)
+    min_blocks = int(silence.min_recording_seconds / silence.block_duration_seconds)
+
+    recorded_blocks: list[np.ndarray] = []
+    silent_blocks = 0
+    speech_started = False
+
+    with sd.InputStream(
+        samplerate=audio_config.sample_rate,
+        channels=audio_config.channels,
+        dtype=audio_config.dtype,
+        device=device,
+        blocksize=block_size,
+    ) as stream:
+        for block_index in range(max_blocks):
+            block, _ = stream.read(block_size)
+            recorded_blocks.append(block.copy())
+
+            volume = _rms(block)
+            if volume >= silence.threshold:
+                speech_started = True
+                silent_blocks = 0
+            elif speech_started:
+                silent_blocks += 1
+
+            enough_audio = block_index + 1 >= min_blocks
+            enough_silence = silent_blocks >= silence_blocks_needed
+            if speech_started and enough_audio and enough_silence:
+                break
+
+    if not recorded_blocks:
+        return np.empty((0, audio_config.channels), dtype=audio_config.dtype)
+
+    return np.concatenate(recorded_blocks, axis=0)
 
 
 def save_wav(
@@ -82,10 +139,32 @@ def record_to_wav(
     return save_wav(samples, wav_path, config=audio_config)
 
 
+def record_to_wav_until_silence(
+    output_path: str | Path | None = None,
+    config: AudioConfig | None = None,
+    silence_config: SilenceConfig | None = None,
+    device: int | str | None = None,
+) -> Path:
+    """Graba audio y corta automaticamente cuando detecta silencio."""
+    audio_config = config or AudioConfig()
+    wav_path = Path(output_path) if output_path else _default_recording_path()
+    samples = record_audio_until_silence(
+        config=audio_config,
+        silence_config=silence_config,
+        device=device,
+    )
+    return save_wav(samples, wav_path, config=audio_config)
+
+
 def _float_to_pcm16(samples: np.ndarray) -> np.ndarray:
     """Convierte muestras float32 normalizadas a PCM int16."""
     clipped = np.clip(samples, -1.0, 1.0)
     return (clipped * 32767).astype(np.int16)
+
+
+def _rms(samples: np.ndarray) -> float:
+    """Calcula volumen RMS para detectar voz de forma simple."""
+    return float(np.sqrt(np.mean(np.square(samples))))
 
 
 def _default_recording_path() -> Path:
@@ -114,17 +193,29 @@ def _build_parser() -> argparse.ArgumentParser:
         default=None,
         help="ID o nombre del dispositivo de entrada.",
     )
+    parser.add_argument(
+        "--silence",
+        action="store_true",
+        help="Graba hasta detectar silencio en lugar de usar duracion fija.",
+    )
     return parser
 
 
 def main() -> None:
     """Permite probar la captura ejecutando: python -m audio.recorder."""
     args = _build_parser().parse_args()
-    output_path = record_to_wav(
-        duration_seconds=args.duration,
-        output_path=args.output,
-        device=args.device,
-    )
+    if args.silence:
+        output_path = record_to_wav_until_silence(
+            output_path=args.output,
+            silence_config=SilenceConfig(max_duration_seconds=args.duration),
+            device=args.device,
+        )
+    else:
+        output_path = record_to_wav(
+            duration_seconds=args.duration,
+            output_path=args.output,
+            device=args.device,
+        )
     print(f"Audio grabado en: {output_path}")
 
 
